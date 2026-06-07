@@ -153,7 +153,6 @@ contract PaymentEscrow is Ownable, ReentrancyGuard {
             "PaymentEscrow: order already exists");
 
         uint256 buyerTimeoutDuration = buyerTimeout > 0 ? buyerTimeout : DEFAULT_BUYER_TIMEOUT;
-        uint256 deliveryTimeoutDuration = deliveryTimeout > 0 ? deliveryTimeout : DEFAULT_DELIVERY_TIMEOUT;
 
         orders[orderId] = Order({
             orderId: orderId,
@@ -231,7 +230,7 @@ contract PaymentEscrow is Ownable, ReentrancyGuard {
         Order storage order = orders[orderId];
 
         require(block.timestamp < order.deliveryTimeoutAt,
-            "PaymentEscrow: delivery timeout expired — use refund");
+            "PaymentEscrow: delivery timeout expired - use refund");
 
         // Calculate protocol fee (0.5% paid by seller)
         uint256 fee = (order.amount * PROTOCOL_FEE_BPS) / BPS_DENOMINATOR;

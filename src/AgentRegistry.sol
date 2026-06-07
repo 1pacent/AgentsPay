@@ -70,7 +70,7 @@ contract AgentRegistry is Ownable, ReentrancyGuard {
 
     function registerAgent(
         string calldata agentId,
-        string[] calldata capabilities,
+        string[] memory capabilities,
         address payoutWallet,
         uint256 minPrice,
         uint256 maxPrice
@@ -102,7 +102,7 @@ contract AgentRegistry is Ownable, ReentrancyGuard {
 
     function updateRegistration(
         string calldata agentId,
-        string[] calldata capabilities,
+        string[] memory capabilities,
         address payoutWallet,
         uint256 minPrice,
         uint256 maxPrice

@@ -44,19 +44,19 @@ contract PaymentEscrowTest is Test {
         vm.prank(buyer);
         bool funded = escrow.deposit(ORDER_ID);
         assertTrue(funded);
-        assertEq(escrow.getOrderState(ORDER_ID), PaymentEscrow.OrderState.FUNDED);
+        assertEq(uint8(escrow.getOrderState(ORDER_ID)), uint8(PaymentEscrow.OrderState.FUNDED));
 
         // 3. Seller confirms delivery
         vm.prank(seller);
         bool confirmed = escrow.confirmDelivery(ORDER_ID);
         assertTrue(confirmed);
-        assertEq(escrow.getOrderState(ORDER_ID), PaymentEscrow.OrderState.DELIVERED);
+        assertEq(uint8(escrow.getOrderState(ORDER_ID)), uint8(PaymentEscrow.OrderState.DELIVERED));
 
         // 4. Buyer releases payment
         vm.prank(buyer);
         bool released = escrow.releasePayment(ORDER_ID);
         assertTrue(released);
-        assertEq(escrow.getOrderState(ORDER_ID), PaymentEscrow.OrderState.COMPLETED);
+        assertEq(uint8(escrow.getOrderState(ORDER_ID)), uint8(PaymentEscrow.OrderState.COMPLETED));
 
         // Check seller received 99.5 USDC (99_500_000)
         assertEq(usdc.balanceOf(seller), 99_500_000);
@@ -69,7 +69,7 @@ contract PaymentEscrowTest is Test {
 
     function test_Revert_DepositBeforeCreate() public {
         vm.prank(buyer);
-        vm.expectRevert("PaymentEscrow: invalid state");
+        vm.expectRevert("PaymentEscrow: only buyer");
         escrow.deposit(ORDER_ID);
     }
 
@@ -127,7 +127,7 @@ contract PaymentEscrowTest is Test {
         vm.prank(buyer);
         bool cancelled = escrow.cancelOrder(ORDER_ID);
         assertTrue(cancelled);
-        assertEq(escrow.getOrderState(ORDER_ID), PaymentEscrow.OrderState.CANCELLED);
+        assertEq(uint8(escrow.getOrderState(ORDER_ID)), uint8(PaymentEscrow.OrderState.CANCELLED));
     }
 
     function test_Revert_CancelAfterDeposit() public {
@@ -153,7 +153,7 @@ contract PaymentEscrowTest is Test {
         vm.prank(buyer);
         bool refunded = escrow.refund(ORDER_ID);
         assertTrue(refunded);
-        assertEq(escrow.getOrderState(ORDER_ID), PaymentEscrow.OrderState.REFUNDED);
+        assertEq(uint8(escrow.getOrderState(ORDER_ID)), uint8(PaymentEscrow.OrderState.REFUNDED));
 
         // USDC returned to buyer
         assertEq(usdc.balanceOf(buyer), AMOUNT * 10);
@@ -189,7 +189,7 @@ contract PaymentEscrowTest is Test {
         vm.prank(address(0x999));
         bool refunded = escrow.refund(ORDER_ID);
         assertTrue(refunded);
-        assertEq(escrow.getOrderState(ORDER_ID), PaymentEscrow.OrderState.REFUNDED);
+        assertEq(uint8(escrow.getOrderState(ORDER_ID)), uint8(PaymentEscrow.OrderState.REFUNDED));
     }
 
     // ─── Self-Order Protection ───
