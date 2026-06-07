@@ -1,0 +1,25 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+
+# Solidity version
+solc_version = "0.8.20"
+
+# Fuzz testing
+fuzz_runs = 256
+
+# Gas reporting
+gas_reports = ["*"]
+
+[profile.ci]
+fuzz_runs = 1024
+verbosity = 4
+
+# Etherscan verification
+[etherscan]
+base_sepolia = { key = "${BASESCAN_API_KEY}" }
+
+# RPC endpoints
+[rpc_endpoints]
+base_sepolia = "${BASE_SEPOLIA_RPC_URL}"

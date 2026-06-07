@@ -1,0 +1,23 @@
+# Foundry
+out/
+cache/
+
+# Dependencies
+lib/
+
+# Environment
+.env
+.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage
+lcov.info
