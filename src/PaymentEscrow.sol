@@ -10,7 +10,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  * @title PaymentEscrow
  * @notice USDC escrow with state machine for agent-to-agent payments
  * @dev States: CREATED → FUNDED → DELIVERED → COMPLETED (or timeout → REFUNDED)
- *       Protocol fee: 0.5% (50 bps), paid by seller
+ *       Protocol fee: Tiered — $0.002 flat (≤$0.10), 1% ($0.10-$1.00), 0.5% ($1.00+)
+ *       x402 bridge: initiateFromX402 accepts x402 payment receipts
  */
 contract PaymentEscrow is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -22,8 +23,18 @@ contract PaymentEscrow is Ownable, ReentrancyGuard {
     /// @notice USDC has 6 decimal places
     uint256 public constant USDC_DECIMALS = 6;
 
-    /// @notice Protocol fee: 0.5% = 50 basis points
-    uint256 public constant PROTOCOL_FEE_BPS = 50;
+    // ── Tiered fee structure ─────
+
+    /// @notice Tier 1: flat $0.002 fee for orders ≤ $0.10 (100_000 in 6-dec USDC)
+    uint256 public constant TIER1_MAX = 100_000;        // $0.10
+    uint256 public constant TIER1_FEE_FLAT = 2_000;     // $0.002
+
+    /// @notice Tier 2: 1% fee for orders between $0.10 and $1.00
+    uint256 public constant TIER2_MAX = 1_000_000;      // $1.00
+    uint256 public constant TIER2_FEE_BPS = 100;         // 1% = 100 bps
+
+    /// @notice Tier 3: 0.5% fee for orders > $1.00
+    uint256 public constant TIER3_FEE_BPS = 50;          // 0.5% = 50 bps
 
     /// @notice 100% = 10000 basis points
     uint256 public constant BPS_DENOMINATOR = 10000;
@@ -74,6 +85,22 @@ contract PaymentEscrow is Ownable, ReentrancyGuard {
     /// @notice Order IDs for enumeration
     bytes32[] public orderIds;
 
+    // ── x402 bridge ─────
+
+    /// @notice x402 payment receipt
+    struct X402Receipt {
+        address payer;
+        address seller;
+        uint256 amount;
+        uint256 timestamp;
+    }
+
+    /// @notice Replay protection: x402 tx hash → used flag
+    mapping(bytes32 => bool) public usedX402Receipts;
+
+    /// @notice x402-originated order → receipt hash
+    mapping(bytes32 => bytes32) public x402OrderReceipts;
+
     // ──────────────────────────────────────────────
     // Events
     // ──────────────────────────────────────────────
@@ -97,6 +124,15 @@ contract PaymentEscrow is Ownable, ReentrancyGuard {
     event OrderCancelled(bytes32 indexed orderId);
     event FeesWithdrawn(uint256 amount, address indexed to);
     event USDCUpdated(address indexed newToken);
+
+    // ── x402 bridge events ──
+    event X402OrderCreated(
+        bytes32 indexed orderId,
+        address indexed buyer,
+        address indexed seller,
+        uint256 amount,
+        bytes32 x402TxHash
+    );
 
     // ──────────────────────────────────────────────
     // Modifiers
@@ -232,8 +268,8 @@ contract PaymentEscrow is Ownable, ReentrancyGuard {
         require(block.timestamp < order.deliveryTimeoutAt,
             "PaymentEscrow: delivery timeout expired - use refund");
 
-        // Calculate protocol fee (0.5% paid by seller)
-        uint256 fee = (order.amount * PROTOCOL_FEE_BPS) / BPS_DENOMINATOR;
+        // Calculate protocol fee (tiered — using internal helper)
+        uint256 fee = _calcFee(order.amount);
         uint256 sellerAmount = order.amount - fee;
 
         order.state = OrderState.COMPLETED;
@@ -303,6 +339,88 @@ contract PaymentEscrow is Ownable, ReentrancyGuard {
 
         emit OrderCancelled(orderId);
         return true;
+    }
+
+    // ──────────────────────────────────────────────
+    // Fee Calculation
+    // ──────────────────────────────────────────────
+
+    /**
+     * @notice Calculate protocol fee based on tiered structure
+     * @param amount USDC amount (6 decimals)
+     * @return fee Protocol fee in USDC (6 decimals)
+     */
+    function _calcFee(uint256 amount) private pure returns (uint256) {
+        if (amount <= TIER1_MAX) {
+            // Tier 1: flat $0.002 fee for microtransactions
+            return TIER1_FEE_FLAT;
+        } else if (amount <= TIER2_MAX) {
+            // Tier 2: 1% for small transactions
+            return (amount * TIER2_FEE_BPS) / BPS_DENOMINATOR;
+        } else {
+            // Tier 3: 0.5% for standard transactions
+            return (amount * TIER3_FEE_BPS) / BPS_DENOMINATOR;
+        }
+    }
+
+    /**
+     * @notice Public wrapper for fee calculation (used by tests and external callers)
+     */
+    function calculateFee(uint256 amount) external pure returns (uint256) {
+        return _calcFee(amount);
+    }
+
+    // ──────────────────────────────────────────────
+    // x402 Bridge
+    // ──────────────────────────────────────────────
+
+    /**
+     * @notice Create an escrow order from an x402 payment receipt
+     * @dev x402 has already transferred USDC; this wraps it in escrow lifecycle
+     * @param seller Address of the selling agent
+     * @param x402TxHash x402 transaction hash (for replay protection)
+     * @param amount USDC amount (6 decimals) that was paid via x402
+     * @return orderId The escrow order ID
+     */
+    function initiateFromX402(
+        address seller,
+        bytes32 x402TxHash,
+        uint256 amount
+    ) external nonReentrant returns (bytes32 orderId) {
+        require(seller != address(0), "PaymentEscrow: invalid seller");
+        require(seller != msg.sender, "PaymentEscrow: cannot self-order");
+        require(amount > 0, "PaymentEscrow: amount must be > 0");
+        require(x402TxHash != bytes32(0), "PaymentEscrow: invalid x402 hash");
+        require(!usedX402Receipts[x402TxHash], "PaymentEscrow: x402 receipt already used");
+
+        // Mark receipt as used (replay protection)
+        usedX402Receipts[x402TxHash] = true;
+
+        // Generate order ID from the x402 receipt
+        orderId = keccak256(abi.encodePacked("x402", x402TxHash, msg.sender, seller, amount, block.timestamp));
+
+        require(orders[orderId].createdAt == 0, "PaymentEscrow: order ID collision");
+
+        // Order starts in FUNDED state (x402 already transferred USDC)
+        orders[orderId] = Order({
+            orderId: orderId,
+            buyer: msg.sender,
+            seller: seller,
+            amount: amount,
+            feeAmount: 0,
+            token: usdcToken,
+            state: OrderState.FUNDED,
+            createdAt: block.timestamp,
+            buyerTimeoutAt: 0,
+            deliveryTimeoutAt: block.timestamp + DEFAULT_DELIVERY_TIMEOUT
+        });
+
+        orderIds.push(orderId);
+        x402OrderReceipts[orderId] = x402TxHash;
+
+        emit X402OrderCreated(orderId, msg.sender, seller, amount, x402TxHash);
+
+        return orderId;
     }
 
     // ──────────────────────────────────────────────

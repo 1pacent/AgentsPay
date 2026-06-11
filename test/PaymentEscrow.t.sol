@@ -16,6 +16,9 @@ contract PaymentEscrowTest is Test {
     bytes32 constant ORDER_ID = keccak256("test-order-001");
     uint256 constant AMOUNT = 100_000_000; // 100 USDC (6 decimals)
 
+    // x402 test constants
+    bytes32 constant X402_TX_HASH = keccak256("x402-tx-001");
+
     function setUp() public {
         // Deploy mock USDC
         usdc = new MockUSDC();
@@ -231,7 +234,7 @@ contract PaymentEscrowTest is Test {
     // ─── Fuzz ───
 
     function testFuzz_ValidOrderFlow(uint256 amount) public {
-        vm.assume(amount > 0 && amount <= 10_000_000_000);
+        vm.assume(amount > 2_000 && amount <= 10_000_000_000); // Must cover Tier 1 flat fee
 
         // Mint enough USDC to buyer
         usdc.mint(buyer, amount);
@@ -249,10 +252,202 @@ contract PaymentEscrowTest is Test {
         escrow.releasePayment(ORDER_ID);
 
         // Verify amounts
-        uint256 fee = (amount * 50) / 10000;
+        uint256 fee = escrow.calculateFee(amount);
         uint256 sellerAmount = amount - fee;
 
         assertEq(usdc.balanceOf(seller), sellerAmount);
         assertEq(escrow.accumulatedFees(), fee);
+    }
+
+    // ─── Tiered Fee Tests ───
+
+    function test_Tier1_FlatFee_Micro() public {
+        // Tier 1: ≤ 100_000 (≤ $0.10) → flat $0.002 fee
+        uint256 microAmount = 50_000;
+        bytes32 tid = keccak256("tier1-test");
+
+        usdc.mint(buyer, microAmount);
+        vm.prank(buyer);
+        usdc.approve(address(escrow), microAmount);
+
+        vm.prank(buyer);
+        escrow.createOrder(tid, seller, microAmount, 0, 0);
+        vm.prank(buyer);
+        escrow.deposit(tid);
+        vm.prank(seller);
+        escrow.confirmDelivery(tid);
+        vm.prank(buyer);
+        escrow.releasePayment(tid);
+
+        // Fee should be flat $0.002 (2_000), not 0.5%
+        assertEq(escrow.accumulatedFees(), 2_000);
+        assertEq(usdc.balanceOf(seller), microAmount - 2_000);
+    }
+
+    function test_Tier1_FlatFee_MaxBoundary() public {
+        // Boundary: exactly $0.10 → flat fee
+        uint256 boundaryAmount = 100_000;
+        bytes32 tid = keccak256("tier1-boundary");
+
+        usdc.mint(buyer, boundaryAmount);
+        vm.prank(buyer);
+        usdc.approve(address(escrow), boundaryAmount);
+
+        vm.prank(buyer);
+        escrow.createOrder(tid, seller, boundaryAmount, 0, 0);
+        vm.prank(buyer);
+        escrow.deposit(tid);
+        vm.prank(seller);
+        escrow.confirmDelivery(tid);
+        vm.prank(buyer);
+        escrow.releasePayment(tid);
+
+        assertEq(escrow.accumulatedFees(), 2_000);
+    }
+
+    function test_Tier2_PercentageFee() public {
+        // Tier 2: $0.10-$1.00 → 1%
+        uint256 mediumAmount = 500_000; // $0.50
+        bytes32 tid = keccak256("tier2-test");
+
+        usdc.mint(buyer, mediumAmount);
+        vm.prank(buyer);
+        usdc.approve(address(escrow), mediumAmount);
+
+        vm.prank(buyer);
+        escrow.createOrder(tid, seller, mediumAmount, 0, 0);
+        vm.prank(buyer);
+        escrow.deposit(tid);
+        vm.prank(seller);
+        escrow.confirmDelivery(tid);
+        vm.prank(buyer);
+        escrow.releasePayment(tid);
+
+        // 1% of 500_000 = 5_000
+        assertEq(escrow.accumulatedFees(), 500_000 / 100);
+        assertEq(usdc.balanceOf(seller), mediumAmount - 5_000);
+    }
+
+    function test_Tier2_PercentageFee_MaxBoundary() public {
+        // Boundary: exactly $1.00 → 1%
+        uint256 boundaryAmount = 1_000_000;
+        bytes32 tid = keccak256("tier2-boundary");
+
+        usdc.mint(buyer, boundaryAmount);
+        vm.prank(buyer);
+        usdc.approve(address(escrow), boundaryAmount);
+
+        vm.prank(buyer);
+        escrow.createOrder(tid, seller, boundaryAmount, 0, 0);
+        vm.prank(buyer);
+        escrow.deposit(tid);
+        vm.prank(seller);
+        escrow.confirmDelivery(tid);
+        vm.prank(buyer);
+        escrow.releasePayment(tid);
+
+        assertEq(escrow.accumulatedFees(), 10_000); // 1% of 1_000_000
+    }
+
+    function test_Tier3_PercentageFee() public {
+        // Tier 3: > $1.00 → 0.5% (same as previous flat fee for standard amounts)
+        uint256 standardAmount = 10_000_000; // $10.00
+        bytes32 tid = keccak256("tier3-test");
+
+        usdc.mint(buyer, standardAmount);
+        vm.prank(buyer);
+        usdc.approve(address(escrow), standardAmount);
+
+        vm.prank(buyer);
+        escrow.createOrder(tid, seller, standardAmount, 0, 0);
+        vm.prank(buyer);
+        escrow.deposit(tid);
+        vm.prank(seller);
+        escrow.confirmDelivery(tid);
+        vm.prank(buyer);
+        escrow.releasePayment(tid);
+
+        // 0.5% of 10_000_000 = 50_000
+        assertEq(escrow.accumulatedFees(), 50_000);
+    }
+
+    function test_CalculateFee_Unit() public {
+        // Unit test calculateFee directly
+        assertEq(escrow.calculateFee(1), 2_000);          // Tier 1: flat fee dominates
+        assertEq(escrow.calculateFee(100_000), 2_000);     // Tier 1 boundary
+        assertEq(escrow.calculateFee(100_001), 1_000);     // Tier 2: 1% of 100_001 = 1_000
+        assertEq(escrow.calculateFee(1_000_000), 10_000);  // Tier 2 boundary
+        assertEq(escrow.calculateFee(1_000_001), 5_000);   // Tier 3: 0.5% of 1_000_001 = 5_000
+        assertEq(escrow.calculateFee(100_000_000), 500_000); // Tier 3: 0.5% of 100 USDC
+    }
+
+    // ─── x402 Bridge Tests ───
+
+    function test_X402_HappyPath() public {
+        // Buyer initiates escrow from an x402 payment
+        uint256 x402Amount = 50_000_000; // 50 USDC
+        usdc.mint(buyer, x402Amount);
+
+        vm.prank(buyer);
+        bytes32 orderId = escrow.initiateFromX402(seller, X402_TX_HASH, x402Amount);
+
+        // Order should be in FUNDED state
+        assertEq(uint8(escrow.getOrderState(orderId)), uint8(PaymentEscrow.OrderState.FUNDED));
+
+        // Receipt should be marked as used
+        assertTrue(escrow.usedX402Receipts(X402_TX_HASH));
+
+        // x402 receipt should be linked
+        assertEq(escrow.x402OrderReceipts(orderId), X402_TX_HASH);
+    }
+
+    function test_X402_FullEscrowFlow() public {
+        uint256 x402Amount = 50_000_000;
+        // x402 has already transferred USDC to the escrow contract
+        usdc.mint(address(escrow), x402Amount);
+
+        vm.prank(buyer);
+        bytes32 orderId = escrow.initiateFromX402(seller, X402_TX_HASH, x402Amount);
+
+        // 1. Seller confirms delivery
+        vm.prank(seller);
+        escrow.confirmDelivery(orderId);
+
+        // 2. Buyer releases payment
+        vm.prank(buyer);
+        escrow.releasePayment(orderId);
+
+        assertEq(uint8(escrow.getOrderState(orderId)), uint8(PaymentEscrow.OrderState.COMPLETED));
+
+        // Verify fee (Tier 3: 0.5%)
+        assertEq(escrow.accumulatedFees(), 250_000);
+        assertEq(usdc.balanceOf(seller), x402Amount - 250_000);
+    }
+
+    function test_Revert_X402_DuplicateReceipt() public {
+        vm.prank(buyer);
+        escrow.initiateFromX402(seller, X402_TX_HASH, 50_000_000);
+
+        vm.prank(buyer);
+        vm.expectRevert("PaymentEscrow: x402 receipt already used");
+        escrow.initiateFromX402(seller, X402_TX_HASH, 50_000_000);
+    }
+
+    function test_Revert_X402_ZeroAmount() public {
+        vm.prank(buyer);
+        vm.expectRevert("PaymentEscrow: amount must be > 0");
+        escrow.initiateFromX402(seller, X402_TX_HASH, 0);
+    }
+
+    function test_Revert_X402_ZeroHash() public {
+        vm.prank(buyer);
+        vm.expectRevert("PaymentEscrow: invalid x402 hash");
+        escrow.initiateFromX402(seller, bytes32(0), 50_000_000);
+    }
+
+    function test_Revert_X402_SelfOrder() public {
+        vm.prank(seller);
+        vm.expectRevert("PaymentEscrow: cannot self-order");
+        escrow.initiateFromX402(seller, X402_TX_HASH, 50_000_000);
     }
 }

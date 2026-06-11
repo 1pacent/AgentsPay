@@ -6,6 +6,11 @@ libs = ["lib"]
 # Solidity version
 solc_version = "0.8.20"
 
+# Enable IR pipeline + optimizer for stack management
+via_ir = true
+optimizer = true
+optimizer_runs = 200
+
 # Gas reporting
 gas_reports = ["*"]
 
