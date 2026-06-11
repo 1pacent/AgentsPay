@@ -84,6 +84,38 @@ class RefundResult(BaseModel):
     txHash: str | None = None
 
 
+# ─── x402 Models ───
+
+
+class X402Service(BaseModel):
+    id: str
+    name: str
+    description: str
+    provider: str
+    endpoint: str
+    pricing: dict
+    tags: list[str]
+    rating: float
+    capabilities: list[str]
+
+
+class X402DiscoverResult(BaseModel):
+    services: list[X402Service]
+    count: int
+    source: str
+
+
+class X402PayResult(BaseModel):
+    success: bool = True
+    charge_id: str
+    service_id: str
+    amount: str
+    currency: str = "USDC"
+    status: str
+    transaction_hash: str | None = None
+    receipt_url: str | None = None
+
+
 # Error codes
 
 MCP_ERROR_CODES = {

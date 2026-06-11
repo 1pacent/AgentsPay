@@ -14,6 +14,8 @@ from app.handlers import (
     handle_verify,
     handle_status,
     handle_refund,
+    handle_x402_discover,
+    handle_x402_pay,
 )
 
 
@@ -32,6 +34,9 @@ HANDLERS: dict[str, Callable[[dict[str, Any]], dict[str, Any] | None]] = {
     "agent_pay.verify": handle_verify,
     "agent_pay.status": handle_status,
     "agent_pay.refund": handle_refund,
+    # x402 Bazaar integration (V1)
+    "x402.discover": handle_x402_discover,
+    "x402.pay": handle_x402_pay,
 }
 
 
@@ -42,7 +47,7 @@ def route(method: str, params: dict[str, Any]) -> dict[str, Any] | None:
     if method not in HANDLERS:
         code, msg = MCP_ERROR_CODES["METHOD_NOT_FOUND"]
         return mcp_error(code, f"Method '{method}' not found")
-    
+
     handler = HANDLERS[method]
     try:
         result = handler(params)

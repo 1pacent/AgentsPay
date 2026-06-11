@@ -55,5 +55,22 @@ class Settings:
         int(os.getenv("AGENTPAYS_ESCROW_TIMEOUT", "3600"))
     )
 
+    # x402 Bazaar
+    x402_bazaar_mcp_url: str = field(
+        default_factory=lambda: os.getenv(
+            "X402_BAZAAR_MCP_URL",
+            "https://api.cdp.coinbase.com/v2/x402/discovery"
+        )
+    )
+    x402_bazaar_http_url: str = field(
+        default_factory=lambda: os.getenv(
+            "X402_BAZAAR_HTTP_URL",
+            "https://api.cdp.coinbase.com/v2/x402/discovery"
+        )
+    )
+    x402_api_key: str | None = field(
+        default_factory=lambda: os.getenv("X402_API_KEY", None)
+    )
+
 
 settings = Settings()
