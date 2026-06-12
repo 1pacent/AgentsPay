@@ -21,3 +21,5 @@ Thumbs.db
 
 # Coverage
 lcov.info
+*.bak
+__pycache__/

@@ -16,6 +16,11 @@ from app.handlers import (
     handle_refund,
     handle_x402_discover,
     handle_x402_pay,
+    # Track B2: scope + ratings
+    handle_negotiate_scope,
+    handle_accept_scope,
+    handle_submit_rating,
+    handle_get_agent_profile,
 )
 
 
@@ -37,6 +42,11 @@ HANDLERS: dict[str, Callable[[dict[str, Any]], dict[str, Any] | None]] = {
     # x402 Bazaar integration (V1)
     "x402.discover": handle_x402_discover,
     "x402.pay": handle_x402_pay,
+    # Track B2: scope negotiation + rating
+    "agent_pay.negotiate_scope": handle_negotiate_scope,
+    "agent_pay.accept_scope": handle_accept_scope,
+    "agent_pay.submit_rating": handle_submit_rating,
+    "agent_pay.get_agent_profile": handle_get_agent_profile,
 }
 
 

@@ -5,6 +5,8 @@ from app.handlers.status import handle_status
 from app.handlers.refund import handle_refund
 from app.handlers.x402_discover import handle_x402_discover
 from app.handlers.x402_pay import handle_x402_pay
+from app.handlers.scope import handle_negotiate_scope, handle_accept_scope
+from app.handlers.rating import handle_submit_rating, handle_get_agent_profile
 
 __all__ = [
     "handle_discover",
@@ -14,4 +16,8 @@ __all__ = [
     "handle_refund",
     "handle_x402_discover",
     "handle_x402_pay",
+    "handle_negotiate_scope",
+    "handle_accept_scope",
+    "handle_submit_rating",
+    "handle_get_agent_profile",
 ]
