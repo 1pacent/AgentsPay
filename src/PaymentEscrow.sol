@@ -50,6 +50,7 @@ contract PaymentEscrow is Ownable, ReentrancyGuard {
     enum OrderState {
         CREATED,    // Order created, awaiting deposit
         FUNDED,     // USDC deposited into escrow
+        SCOPED,     // Scope agreed by both parties (Track A2)
         DELIVERED,  // Seller marked as delivered, awaiting buyer verification
         COMPLETED,  // Buyer confirmed — payment released to seller
         REFUNDED,   // Timed out or cancelled — funds returned to buyer
@@ -101,6 +102,17 @@ contract PaymentEscrow is Ownable, ReentrancyGuard {
     /// @notice x402-originated order → receipt hash
     mapping(bytes32 => bytes32) public x402OrderReceipts;
 
+    // ── scope commitment state (Track A2) ──
+
+    /// @notice Accepted scope hashes (prevents replay across orders)
+    mapping(bytes32 => bool) public acceptedScopes;
+
+    /// @notice Per-order proposed scope hash
+    mapping(bytes32 => bytes32) public orderScopeHash;
+
+    /// @notice Agents eligible for auto-release on scoped delivery
+    mapping(address => bool) public trustedAgents;
+
     // ──────────────────────────────────────────────
     // Events
     // ──────────────────────────────────────────────
@@ -133,6 +145,10 @@ contract PaymentEscrow is Ownable, ReentrancyGuard {
         uint256 amount,
         bytes32 x402TxHash
     );
+
+    // ── scope commitment events (Track A2) ──
+    event ScopeProposed(bytes32 indexed orderId, bytes32 scopeHash, address indexed proposer);
+    event ScopeAccepted(bytes32 indexed orderId, bytes32 scopeHash, address indexed accepter);
 
     // ──────────────────────────────────────────────
     // Modifiers
@@ -339,6 +355,95 @@ contract PaymentEscrow is Ownable, ReentrancyGuard {
 
         emit OrderCancelled(orderId);
         return true;
+    }
+
+    // ──────────────────────────────────────────────
+    // Scope Commitment (Track A2)
+    // ──────────────────────────────────────────────
+
+    /**
+     * @notice Owner designates an agent as trusted for auto-release
+     * @param agent Address of the agent
+     * @param trusted True to trust, false to revoke
+     */
+    function setTrustedAgent(address agent, bool trusted) external onlyOwner {
+        trustedAgents[agent] = trusted;
+    }
+
+    /**
+     * @notice Buyer proposes a scope hash for an order
+     * @param orderId The order to scope
+     * @param scopeHash keccak256 hash of the scope agreement (off-chain)
+     */
+    function proposeScope(bytes32 orderId, bytes32 scopeHash)
+        external
+        onlyBuyer(orderId)
+        inState(orderId, OrderState.FUNDED)
+    {
+        require(orderScopeHash[orderId] == bytes32(0), "PaymentEscrow: scope already proposed");
+        orderScopeHash[orderId] = scopeHash;
+        emit ScopeProposed(orderId, scopeHash, msg.sender);
+    }
+
+    /**
+     * @notice Seller accepts a proposed scope hash
+     * @param orderId The order to accept scope for
+     * @param scopeHash Must match what buyer proposed
+     */
+    function acceptScope(bytes32 orderId, bytes32 scopeHash)
+        external
+        onlySeller(orderId)
+        inState(orderId, OrderState.FUNDED)
+    {
+        require(orderScopeHash[orderId] == scopeHash, "PaymentEscrow: scope mismatch");
+        require(!acceptedScopes[scopeHash], "PaymentEscrow: scope already accepted on another order");
+        acceptedScopes[scopeHash] = true;
+        orders[orderId].state = OrderState.SCOPED;
+        emit ScopeAccepted(orderId, scopeHash, msg.sender);
+    }
+
+    /**
+     * @notice Seller confirms delivery against agreed scope
+     * @dev Auto-releases payment for trusted agents; sets DELIVERED for untrusted
+     * @param orderId The completed order
+     * @param resultHash keccak256 of the delivery result (for future proof)
+     * @param scopeHash Must match the accepted scope
+     */
+    function confirmScopedDelivery(bytes32 orderId, bytes32 resultHash, bytes32 scopeHash)
+        external
+        nonReentrant
+        onlySeller(orderId)
+        inState(orderId, OrderState.SCOPED)
+    {
+        require(orderScopeHash[orderId] == scopeHash, "PaymentEscrow: wrong scope");
+        require(acceptedScopes[scopeHash], "PaymentEscrow: scope not accepted");
+
+        if (trustedAgents[msg.sender]) {
+            // Auto-release for trusted agents
+            _releaseToSeller(orderId);
+        } else {
+            // Untrusted: set DELIVERED so buyer can verify and release
+            orders[orderId].state = OrderState.DELIVERED;
+            emit DeliveryConfirmed(orderId);
+        }
+    }
+
+    /**
+     * @notice Internal helper: release payment to seller (bypasses buyer-only check)
+     * @dev Used by confirmScopedDelivery for trusted agents
+     */
+    function _releaseToSeller(bytes32 orderId) private {
+        Order storage order = orders[orderId];
+        uint256 fee = _calcFee(order.amount);
+        uint256 sellerAmount = order.amount - fee;
+
+        order.state = OrderState.COMPLETED;
+        order.feeAmount = fee;
+        accumulatedFees += fee;
+
+        order.token.safeTransfer(order.seller, sellerAmount);
+
+        emit PaymentReleased(orderId, order.seller, sellerAmount, fee);
     }
 
     // ──────────────────────────────────────────────
