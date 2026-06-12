@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentPays Dogfood Dashboard</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0f; color: #e0e0e0; padding: 20px; }
+  h1 { font-size: 1.4rem; font-weight: 600; color: #60a5fa; margin-bottom: 4px; }
+  .subtitle { color: #666; font-size: 0.85rem; margin-bottom: 20px; }
+  .section-title { font-size: 0.9rem; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin: 24px 0 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .card { background: #14141e; border: 1px solid #222; border-radius: 8px; padding: 16px; }
+  .card .label { font-size: 0.75rem; color: #666; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px; }
+  .card .value { font-size: 1.5rem; font-weight: 700; }
+  .card .value.green { color: #4ade80; }
+  .card .value.blue { color: #60a5fa; }
+  .card .value.yellow { color: #fbbf24; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  th { text-align: left; padding: 8px 10px; color: #666; font-weight: 500; border-bottom: 1px solid #222; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.3px; }
+  td { padding: 8px 10px; border-bottom: 1px solid #1a1a24; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; }
+  .badge.ok { background: #0a2e1a; color: #4ade80; }
+  .badge.fail { background: #2e0a0a; color: #f87171; }
+  .badge.progress { background: #1e2e0a; color: #fbbf24; }
+  .latency-bar { height: 6px; border-radius: 3px; background: #1a1a24; overflow: hidden; }
+  .latency-bar .fill { height: 100%; border-radius: 3px; }
+  .dim-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
+  .dim-item { text-align: center; }
+  .dim-item .score { font-size: 1.3rem; font-weight: 700; }
+  .dim-item .label { font-size: 0.7rem; color: #666; margin-top: 2px; }
+  .chart-row { display: flex; align-items: center; margin: 4px 0; }
+  .chart-row .bar { flex: 1; height: 12px; border-radius: 3px; background: #1a1a24; overflow: hidden; margin: 0 8px; }
+  .chart-row .bar .fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+  .empty { text-align: center; color: #444; padding: 40px; font-size: 0.9rem; }
+  .loading { text-align: center; color: #666; padding: 40px; }
+  .tx-meta { color: #888; font-family: monospace; font-size: 0.75rem; }
+  #statusMsg { font-size: 0.8rem; margin-bottom: 12px; }
+  .badge-ELITE { background: linear-gradient(90deg,#1a0a2e,#2e1a4e); color: #c084fc; }
+  .badge-TOP_RATED { background: #1e3a5f; color: #60a5fa; }
+  .badge-NEW_TALENT { background: #1a2e1a; color: #4ade80; }
+  .badge-RISING_STAR { background: #2e2e1a; color: #fbbf24; }
+</style>
+</head>
+<body>
+
+<h1>🤖 AgentPays Dogfood Dashboard</h1>
+<div class="subtitle" id="subtitle">Loading transactions...</div>
+<div id="statusMsg"></div>
+
+<!-- Summary Cards -->
+<div class="grid" id="summaryGrid">
+  <div class="card"><div class="label">Total Orders</div><div class="value blue" id="statTotal">—</div></div>
+  <div class="card"><div class="label">Completed</div><div class="value green" id="statCompleted">—</div></div>
+  <div class="card"><div class="label">Last KYA</div><div class="value" id="statKYA">—</div></div>
+  <div class="card"><div class="label">Avg Rating</div><div class="value green" id="statAvgRating">—</div></div>
+</div>
+
+<!-- Badges & Buyer Tier -->
+<div class="section-title">Agent Badges</div>
+<div class="grid" id="badgeGrid">
+  <div class="card">
+    <div class="label">Seller Badges</div>
+    <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;" id="sellerBadges">
+      <span style="color:#666;font-size:0.8rem;">—</span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="label">Buyer Tier</div>
+    <div style="margin-top:8px;">
+      <span style="font-size:1rem;font-weight:600;" id="buyerTier">—</span>
+      <div style="margin-top:4px;font-size:0.75rem;color:#888;" id="tierProgress"></div>
+      <div class="latency-bar" style="margin-top:6px;max-width:200px;">
+        <div class="fill" style="width:0%;background:linear-gradient(90deg,#92400e,#fbbf24);" id="tierBar"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Rating Trends -->
+<div class="section-title">Rating Trends</div>
+<div class="card" style="padding:20px;margin-bottom:20px;">
+  <div class="dim-grid" id="ratingDims">
+    <div class="dim-item"><div class="score" style="color:#4ade80;" id="rQuality">—</div><div class="label">Quality</div></div>
+    <div class="dim-item"><div class="score" style="color:#60a5fa;" id="rAccuracy">—</div><div class="label">Accuracy</div></div>
+    <div class="dim-item"><div class="score" style="color:#fbbf24;" id="rSpeed">—</div><div class="label">Speed</div></div>
+    <div class="dim-item"><div class="score" style="color:#c084fc;" id="rComm">—</div><div class="label">Communication</div></div>
+    <div class="dim-item"><div class="score" style="color:#4ade80;" id="rHire">—</div><div class="label">Would Hire Again</div></div>
+  </div>
+  <div style="margin-top:16px;" id="ratingChart">
+    <div class="empty">Rate a delivery to see trends</div>
+  </div>
+</div>
+
+<!-- Scope History -->
+<div class="section-title">Scope History</div>
+<div class="card" style="padding:0;overflow:hidden;margin-bottom:20px;">
+  <table>
+    <thead><tr><th>Order</th><th>Capability</th><th>Scope Hash</th><th>Deadline</th><th>Status</th></tr></thead>
+    <tbody id="scopeBody">
+      <tr><td colspan="5" class="empty">No scoped transactions yet</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Transaction Log -->
+<div class="section-title">Transaction Log</div>
+<div class="card" style="padding:0;overflow:hidden;">
+  <table>
+    <thead><tr><th>Time</th><th>Order</th><th>Seller</th><th>Amount</th><th>Scope</th><th>Rating</th><th>Status</th></tr></thead>
+    <tbody id="txBody">
+      <tr><td colspan="7" class="empty">No transactions yet — run dogfood.sh first</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+const LOG_PATH = '../dogfood-data/transactions.json';
+
+function fmtAddr(addr) {
+  if (!addr || addr.length < 12) return addr || '—';
+  return addr.substring(0, 8) + '...' + addr.substring(addr.length - 4);
+}
+
+function fmtTime(ts) {
+  if (!ts) return '—';
+  const d = new Date(typeof ts === 'number' ? ts * 1000 : ts);
+  return d.toLocaleString(undefined, {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+}
+
+function fmtShortHash(hash) {
+  if (!hash || hash.length < 16) return hash || '—';
+  return hash.substring(0, 10) + '...';
+}
+
+function fmtRating(v) {
+  if (v === null || v === undefined) return '—';
+  return Number(v).toFixed(1);
+}
+
+function renderBadges(txs) {
+  const last = txs[txs.length - 1];
+  if (!last) return;
+
+  const badgeMap = {
+    'TOP_RATED': { cls: 'badge-TOP_RATED', label: '⭐ TOP RATED' },
+    'NEW_TALENT': { cls: 'badge-NEW_TALENT', label: '🌱 NEW TALENT' },
+    'ELITE': { cls: 'badge-ELITE', label: '👑 ELITE' },
+    'RISING_STAR': { cls: 'badge-RISING_STAR', label: '🌟 RISING STAR' },
+  };
+
+  // Seller badges
+  const sellerBadges = last.badges?.seller || [];
+  if (sellerBadges.length) {
+    document.getElementById('sellerBadges').innerHTML = sellerBadges.map(b => {
+      const info = badgeMap[b] || { cls: '', label: b };
+      return `<span class="badge ${info.cls}">${info.label}</span>`;
+    }).join('');
+  }
+
+  // Buyer tier
+  const buyer = last.badges?.buyer;
+  if (buyer) {
+    document.getElementById('buyerTier').textContent = buyer.tier || 'NONE';
+    document.getElementById('tierProgress').textContent = buyer.progress || '';
+    // Parse progress for bar width
+    const match = (buyer.progress || '').match(/(\d+)\/(\d+)/);
+    if (match) {
+      const pct = (parseInt(match[1]) / parseInt(match[2])) * 100;
+      document.getElementById('tierBar').style.width = pct + '%';
+    }
+  }
+}
+
+function renderRatings(txs) {
+  const rated = txs.filter(t => t.ratings);
+  if (!rated.length) return;
+
+  const avg = dim => (rated.reduce((s,t) => s + (t.ratings[dim] || 0), 0) / rated.length);
+
+  document.getElementById('rQuality').textContent = fmtRating(avg('quality'));
+  document.getElementById('rAccuracy').textContent = fmtRating(avg('accuracy'));
+  document.getElementById('rSpeed').textContent = fmtRating(avg('speed'));
+  document.getElementById('rComm').textContent = fmtRating(avg('communication'));
+  document.getElementById('rHire').textContent = fmtRating(avg('would_hire_again'));
+  document.getElementById('statAvgRating').textContent = fmtRating(avg('composite'));
+
+  // Chart: last 10 ratings as bars
+  const chart = document.getElementById('ratingChart');
+  chart.innerHTML = rated.slice(-10).map((t, i) => {
+    const c = t.ratings.composite || 0;
+    const pct = (c / 5) * 100;
+    const color = c >= 4 ? '#4ade80' : c >= 3 ? '#fbbf24' : '#f87171';
+    return `<div class="chart-row">
+      <span style="width:30px;font-size:0.7rem;color:#888;">#${rated.length - 9 + i}</span>
+      <div class="bar"><div class="fill" style="width:${pct}%;background:${color};"></div></div>
+      <span style="width:25px;text-align:right;font-size:0.7rem;color:#aaa;">${c.toFixed(1)}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderScopes(txs) {
+  const withScope = txs.filter(t => t.scope_hash);
+  if (!withScope.length) return;
+  const body = document.getElementById('scopeBody');
+  body.innerHTML = withScope.slice().reverse().map(t => `
+    <tr>
+      <td class="tx-meta">${fmtShortHash(t.tx_id)}</td>
+      <td>${t.scope?.capability || '—'}</td>
+      <td class="tx-meta">${fmtShortHash(t.scope_hash)}</td>
+      <td style="font-size:0.75rem;">${t.scope?.deadline ? new Date(t.scope.deadline).toLocaleDateString() : '—'}</td>
+      <td><span class="badge ${t.status === 'completed' ? 'ok' : t.status === 'refunded' ? 'fail' : 'progress'}">${t.status || 'pending'}</span></td>
+    </tr>
+  `).join('');
+}
+
+function renderTxLog(txs) {
+  const body = document.getElementById('txBody');
+  if (!txs.length) {
+    body.innerHTML = '<tr><td colspan="7" class="empty">No transactions yet — run dogfood.sh first</td></tr>';
+    return;
+  }
+  body.innerHTML = txs.slice().reverse().map(t => `
+    <tr>
+      <td style="font-size:0.75rem;color:#888;">${fmtTime(t.timestamp)}</td>
+      <td class="tx-meta">${fmtShortHash(t.tx_id)}</td>
+      <td style="font-size:0.8rem;">${t.seller_name || fmtAddr(t.seller) || '—'}</td>
+      <td style="font-size:0.8rem;">${t.amount || '—'} ${t.currency || ''}</td>
+      <td><span class="badge ${t.scope_hash ? 'ok' : 'progress'}">${t.scope_hash ? '✓' : '—'}</span></td>
+      <td style="font-size:0.8rem;">${t.ratings ? fmtRating(t.ratings.composite) : '—'}</td>
+      <td><span class="badge ${t.status === 'completed' ? 'ok' : t.status === 'refunded' ? 'fail' : 'progress'}">${t.status || '—'}</span></td>
+    </tr>
+  `).join('');
+}
+
+async function loadTransactions() {
+  document.getElementById('subtitle').textContent = 'Loading transactions...';
+  try {
+    const resp = await fetch(LOG_PATH);
+    if (!resp.ok) throw new Error('File not found');
+    const text = await resp.text();
+    // Strip trailing comma from appended JSON (each line is JSON + comma)
+    const clean = text.trim().replace(/,$/, '');
+    const lines = '[' + clean + ']';
+    const parsed = JSON.parse(lines);
+    const txs = Array.isArray(parsed) ? parsed : (parsed.transactions || []);
+
+    if (!txs.length) {
+      document.getElementById('subtitle').textContent = 'No transactions yet — run dogfood.sh first';
+      return;
+    }
+
+    document.getElementById('subtitle').textContent = `Last updated: ${fmtTime(txs[txs.length - 1].timestamp)} — ${txs.length} transactions`;
+
+    // Summary stats
+    const completed = txs.filter(t => t.status === 'completed').length;
+    const last = txs[txs.length - 1];
+    document.getElementById('statTotal').textContent = txs.length;
+    document.getElementById('statCompleted').textContent = completed;
+    document.getElementById('statKYA').textContent = last.kya_score || '—';
+    document.getElementById('statKYA').style.color = (last.kya_score || 0) >= 70 ? '#4ade80' : '#fbbf24';
+
+    renderBadges(txs);
+    renderRatings(txs);
+    renderScopes(txs);
+    renderTxLog(txs);
+
+  } catch (e) {
+    document.getElementById('subtitle').textContent = 'Run dogfood.sh to generate transaction data';
+    document.getElementById('statusMsg').innerHTML = `<span style="color:#888;font-size:0.8rem;">Waiting for data at ${LOG_PATH}...</span>`;
+  }
+}
+
+// Auto-reload every 10 seconds
+loadTransactions();
+setInterval(loadTransactions, 10000);
+</script>
+</body>
+</html>
