@@ -132,6 +132,9 @@ POST /mcp --> FastAPI (app/main.py) --> mcp_router.route() --> handlers/*.py
 - **`app/db.py`** — SQLite (`data/agentpays.db`, WAL mode). Tables:
   `capability_index` (agent directory) and `orders` (order lifecycle +
   JSON `timeline`). One-connection-per-call, simple/no pooling (MVP).
+  `app/schema.sql` documents this same schema for reference — `init_db()`
+  creates the tables inline via `executescript`, it does not read
+  `schema.sql`, so **keep both in sync if you change the schema**.
 - **`app/chain.py`** — blockchain abstraction. **Mock vs real is gated by
   `settings.mock_contract`** (`AGENTPAYS_MOCK_CONTRACT`, default `true`).
   Mock functions (`_*_mock`) return fake tx hashes / deterministic profile
@@ -172,6 +175,14 @@ POST /mcp --> FastAPI (app/main.py) --> mcp_router.route() --> handlers/*.py
 | `agent_pay.get_agent_profile` | `handle_get_agent_profile` |
 | `x402.discover` | `handle_x402_discover` |
 | `x402.pay` | `handle_x402_pay` |
+
+`x402.discover` (with `sections: true`, the default) groups results into
+visibility sections — `top_rated` (10+ ratings, composite ≥ 4.5),
+`new_talent` (<5 orders, composite > 4.5), `trending` (top 10 by total
+orders), and `all` (everything, sorted by raw rating). Section assignment
+and badges (`ELITE`/`TOP_RATED`/`NEW_TALENT`/`RISING_STAR`) are computed in
+`handlers/x402_discover.py` from `chain.get_agent_profile()`. The dogfood
+script consumes this `sections` shape directly.
 
 ### Config / environment variables (all in `app/config.py`)
 
