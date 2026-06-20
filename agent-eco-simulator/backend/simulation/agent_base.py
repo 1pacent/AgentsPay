@@ -25,10 +25,10 @@ from typing import Optional
 
 import anthropic
 
-from ..engine.actions import ActionType, EconomicAction
-from ..engine.ledger import Ledger
-from ..engine.registry import ServiceRegistry
-from ..engine.wallet import AgentWallet
+from engine.actions import ActionType, EconomicAction
+from engine.ledger import Ledger
+from engine.registry import ServiceRegistry
+from engine.wallet import AgentWallet
 
 ACTION_PATTERN = re.compile(r"<<ACTION>>\s*(\{.*?\})\s*<</ACTION>>", re.DOTALL)
 CLIENT = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
@@ -85,7 +85,7 @@ class BaseAgent(ABC):
         self._system_prompt = self._build_system_prompt()
 
     def _build_system_prompt(self) -> str:
-        from ..seed_documents import load_seed
+        from seed_documents import load_seed
         seed = load_seed()
         p = self.persona
         return f"""

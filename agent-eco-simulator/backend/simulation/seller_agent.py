@@ -10,14 +10,14 @@ Act:     PUBLISH_SERVICE, SUBMIT_QUOTE, COUNTEROFFER, SUBMIT_DELIVERABLE,
 import uuid
 from typing import Optional
 
-from ..engine.actions import ActionType
-from ..engine.escrow import Escrow
-from ..engine.negotiation import NegotiationEngine, NegotiationTerms
-from ..engine.registry import ServiceListing, ServiceRegistry
-from ..engine.ledger import Ledger
-from ..engine.validator import Deliverable, get_validator
-from ..engine.wallet import AgentWallet
-from .agent_base import BaseAgent, SimulationContext
+from engine.actions import ActionType
+from engine.escrow import Escrow
+from engine.negotiation import NegotiationEngine, NegotiationTerms
+from engine.registry import ServiceListing, ServiceRegistry
+from engine.ledger import Ledger
+from engine.validator import Deliverable, get_validator
+from engine.wallet import AgentWallet
+from simulation.agent_base import BaseAgent, SimulationContext
 
 
 class SellerAgent(BaseAgent):
@@ -81,7 +81,7 @@ class SellerAgent(BaseAgent):
         # Current reputation
         pub_state = self.persona.get("public_state", {})
         current_rep = pub_state.get("reputation", 0.0)
-        from ..engine.reputation import get_algorithm
+        from engine.reputation import get_algorithm
         try:
             current_rep = get_algorithm("star_rating").score(self.id, ctx.ledger, ctx.tick)
         except Exception:

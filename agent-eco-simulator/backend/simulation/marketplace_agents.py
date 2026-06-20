@@ -5,12 +5,12 @@ These are deterministic-first: they run rule-based logic before
 optionally calling an LLM for complex dispute reasoning.
 """
 
-from ..engine.escrow import Escrow, EscrowStatus
-from ..engine.ledger import Ledger
-from ..engine.registry import ServiceRegistry
-from ..engine.reputation import get_algorithm
-from ..engine.wallet import AgentWallet
-from .agent_base import BaseAgent, SimulationContext
+from engine.escrow import Escrow, EscrowStatus
+from engine.ledger import Ledger
+from engine.registry import ServiceRegistry
+from engine.reputation import get_algorithm
+from engine.wallet import AgentWallet
+from simulation.agent_base import BaseAgent, SimulationContext
 
 
 class EscrowMarketplaceAgent(BaseAgent):

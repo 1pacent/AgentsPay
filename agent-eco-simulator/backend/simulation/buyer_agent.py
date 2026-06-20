@@ -11,13 +11,13 @@ Act:     SEARCH_CAPABILITY, REQUEST_QUOTE, COUNTEROFFER, ACCEPT_SCOPE,
 import uuid
 from typing import Optional
 
-from ..engine.actions import ActionType
-from ..engine.escrow import Escrow
-from ..engine.negotiation import NegotiationEngine, NegotiationTerms
-from ..engine.registry import ServiceRegistry
-from ..engine.ledger import Ledger
-from ..engine.wallet import AgentWallet
-from .agent_base import BaseAgent, SimulationContext
+from engine.actions import ActionType
+from engine.escrow import Escrow
+from engine.negotiation import NegotiationEngine, NegotiationTerms
+from engine.registry import ServiceRegistry
+from engine.ledger import Ledger
+from engine.wallet import AgentWallet
+from simulation.agent_base import BaseAgent, SimulationContext
 
 
 class BuyerAgent(BaseAgent):
@@ -248,7 +248,7 @@ What do you do next?"""
                 (s for s in ctx.registry.all_active() if s.seller_id == provider_id), None
             )
             if listing:
-                from ..engine.reputation import get_algorithm
+                from engine.reputation import get_algorithm
                 algo = get_algorithm("star_rating")
                 new_rep = algo.score(provider_id, ctx.ledger, ctx.tick)
                 ctx.registry.update_reputation(listing.service_id, new_rep)

@@ -23,19 +23,19 @@ from typing import Optional
 
 import yaml
 
-from ..engine.ledger import Ledger
-from ..engine.negotiation import NegotiationEngine
-from ..engine.registry import ServiceRegistry
-from ..engine.wallet import AgentWallet
-from ..metrics.collector import MetricsCollector
-from .agent_base import MessageBus, SimulationContext
-from .buyer_agent import BuyerAgent
-from .marketplace_agents import (
+from engine.ledger import Ledger
+from engine.negotiation import NegotiationEngine
+from engine.registry import ServiceRegistry
+from engine.wallet import AgentWallet
+from metrics.collector import MetricsCollector
+from simulation.agent_base import MessageBus, SimulationContext
+from simulation.buyer_agent import BuyerAgent
+from simulation.marketplace_agents import (
     DisputeResolverAgent,
     EscrowMarketplaceAgent,
     ReputationOracleAgent,
 )
-from .seller_agent import SellerAgent
+from simulation.seller_agent import SellerAgent
 
 ROOT = Path(__file__).parent.parent
 SCENARIOS_DIR = ROOT / "simulation" / "scenarios"

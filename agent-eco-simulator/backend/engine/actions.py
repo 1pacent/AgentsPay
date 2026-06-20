@@ -36,12 +36,12 @@ class ActionType(str, Enum):
 
 @dataclass
 class EconomicAction:
-    action_type: ActionType
     agent_id: str
     tick: int
     payload: dict = field(default_factory=dict)
     timestamp: float = field(default_factory=time.time)
     transaction_id: Optional[str] = None
+    action_type: Optional[ActionType] = None
 
     def validate(self) -> bool:
         """Override in subclasses to enforce action-specific rules."""

@@ -14,8 +14,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from ..engine.ledger import Ledger
-from .collector import MetricsCollector
+from engine.ledger import Ledger
+from metrics.collector import MetricsCollector
 
 
 class ReportGenerator:
