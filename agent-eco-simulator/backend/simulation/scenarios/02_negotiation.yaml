@@ -1,0 +1,73 @@
+id: "02_negotiation"
+name: "Fixed Price vs Negotiation Economics"
+phase: 1
+description: >
+  Runs the same market under two conditions: fixed listed prices vs open
+  negotiation. Measures the token cost of negotiation vs the price savings achieved.
+  Determines the minimum job value at which negotiation is economically rational.
+
+test_question: >
+  At what job value does negotiation make economic sense?
+  How much does spending inference tokens on negotiation actually save?
+  Do buyers over-negotiate cheap jobs and under-negotiate expensive ones?
+
+hypothesis: >
+  Negotiation only makes economic sense above approximately $3.00 USDC.
+  Below that threshold, the inference tokens spent negotiating exceed
+  the savings achieved. Buyers who negotiate everything will have negative
+  net economic outcomes on small jobs.
+
+agents:
+  buyers:
+    - cost_optimiser       # aggressive negotiator — will over-negotiate
+    - quality_first        # does not negotiate — control group
+    - enterprise_procurement # heavy negotiator on big jobs only
+    - urgent_buyer         # never negotiates — control group
+  sellers:
+    - commodity_provider   # $1.50 listed, $0.80 floor
+    - premium_specialist   # $12.00 listed, $8.00 floor
+    - new_entrant          # flexible pricing
+    - high_volume          # $2.20 listed, $1.20 floor
+  marketplace:
+    - reputation_oracle
+
+conditions:
+  condition_a:
+    name: "Fixed Price"
+    description: Buyers must accept listed prices or walk away. No negotiation.
+    rounds: 15
+
+  condition_b:
+    name: "Open Negotiation"
+    description: Buyers can submit counteroffers up to 5 rounds.
+    max_negotiation_rounds: 5
+    rounds: 15
+
+job_sizes:
+  - value: 0.50    # micropayment — negotiation almost certainly irrational
+  - value: 1.50    # borderline
+  - value: 5.00    # moderate — negotiation likely rational
+  - value: 15.00   # large — negotiation clearly rational
+
+token_cost_assumption_usdc_per_1k_tokens: 0.003  # approximate cost for tracking
+
+metrics:
+  - final_price_vs_listed_price        # % saved via negotiation
+  - rounds_per_transaction             # negotiation overhead
+  - estimated_token_cost_per_negotiation
+  - net_savings_after_token_cost       # the key number
+  - completion_rate_by_condition       # does negotiation cause more walk-aways?
+  - buyer_satisfaction_by_job_size
+
+breakeven_analysis:
+  question: "At what listed_price does negotiation_saving > token_cost?"
+
+findings_to_capture:
+  - Actual price savings from negotiation by job size
+  - Estimated inference cost per negotiation round
+  - Which buyer types over-negotiate relative to their savings
+  - Whether sellers behave differently under fixed vs open conditions
+  - Protocol recommendation: should negotiation be gated by job value?
+
+simulation_style: prompt_only
+rounds: 30

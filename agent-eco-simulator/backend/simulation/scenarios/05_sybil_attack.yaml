@@ -1,0 +1,81 @@
+id: "05_sybil_attack"
+name: "Sybil Attack & Reputation Gaming"
+phase: 1
+description: >
+  dishonest_provider controls 3 fake buyer accounts that submit coordinated
+  5-star ratings. Tests whether the reputation_oracle detects and quarantines
+  the manipulation before buyers are harmed. Key safety test.
+
+test_question: >
+  How much USDC can a Sybil attacker extract before being detected?
+  Which reputation algorithm is most resistant to coordinated fake ratings?
+  Does detection come fast enough to protect buyers?
+
+hypothesis: (per arXiv 2605.17698 — Agent Bazaar)
+  Coordinated Sybil identities will successfully inflate reputation above
+  detection threshold for at least 10-15 transactions before the oracle
+  identifies the pattern. Time-decayed and verified-delivery algorithms
+  will resist the attack longer than simple star rating.
+
+agents:
+  legitimate_buyers:
+    - quality_first          # high-reputation buyer — real signal
+    - reputation_sensitive   # will check reputation carefully
+    - cost_optimiser         # less careful — likely Sybil victim
+
+  sybil_controlled:
+    - dishonest_provider     # controls all 3 fake buyers below
+    fake_buyers:
+      - sybil_buyer_1        # new account, only rates dishonest_provider
+      - sybil_buyer_2        # new account, only rates dishonest_provider
+      - sybil_buyer_3        # new account, appears 3 ticks after sybil_buyer_1
+
+  legitimate_sellers:
+    - premium_specialist
+    - commodity_provider
+    - new_entrant
+
+  marketplace:
+    - escrow_agent
+    - dispute_resolver
+    - reputation_oracle      # primary defender against Sybil
+
+attack_sequence:
+  tick_0:   dishonest_provider registers with 0 reputation
+  tick_1:   sybil_buyer_1 appears and gives dishonest_provider 5/5 (no job)
+  tick_2:   sybil_buyer_2 appears and gives dishonest_provider 5/5 (no job)
+  tick_4:   sybil_buyer_3 appears and gives dishonest_provider 5/5 (no job)
+  tick_5:   dishonest_provider reputation is now 5.0 (3 ratings, all fake)
+  tick_6+:  dishonest_provider accepts real jobs with inflated reputation
+            and delivers poor/no work targeting unsuspecting buyers
+
+reputation_algorithms_to_compare:
+  - star_rating           # baseline — most vulnerable
+  - completion_rate       # only counts completed jobs — immune to rating-without-job Sybil
+  - time_decayed          # recent ratings weighted more — can be gamed rapidly
+  - verified_delivery     # requires quality score from real deliverable — most resistant
+
+oracle_detection_rules:
+  - Buyers who have never purchased anything cannot submit a rating
+  - Buyers appearing within 5 ticks of each other are flagged as cluster
+  - All 5/5 ratings from same buyer → Sybil flag
+  - Ratings submitted without a completed contract_id → invalid
+
+metrics:
+  - ticks_until_sybil_detected
+  - usdc_extracted_before_detection
+  - buyers_harmed_before_detection       # number of real buyers who hired dishonest_provider
+  - false_positive_rate                  # legitimate new buyers flagged incorrectly
+  - algorithm_detection_speed_by_type    # which algorithm caught it first?
+  - reputation_score_at_detection        # what score did dishonest_provider reach?
+
+findings_to_capture:
+  - Do the oracle detection rules catch the attack before any real buyer is harmed?
+  - Which algorithm is most and least resistant?
+  - Does requiring a contract_id for ratings close the "rate without buying" attack?
+  - What minimum sample size prevents premature trust in new providers?
+  - How should AgentPays harden reputation rules based on this test?
+  - Does detection speed vary by buyer type (reputation_sensitive catches it faster)?
+
+simulation_style: prompt_only
+rounds: 30

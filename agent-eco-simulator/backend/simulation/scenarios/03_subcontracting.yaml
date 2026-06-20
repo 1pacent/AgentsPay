@@ -1,0 +1,80 @@
+id: "03_subcontracting"
+name: "Multi-Tier Subcontracting Chain"
+phase: 1
+description: >
+  A buyer hires an orchestrator who subcontracts to multiple specialists.
+  Tests the core AgentPays premise: can agents earn by assembling
+  capabilities from other agents? Does chaining beat one premium model?
+
+test_question: >
+  Does a subcontracting chain (orchestrator + specialists) deliver better
+  economic outcomes than hiring one premium provider directly?
+  What is the failure mode when a sub-agent drops out mid-chain?
+
+hypothesis: >
+  For complex multi-step tasks, an orchestrator assembling 3 cheap specialists
+  will undercut a single premium provider by 30-40% on price while matching
+  or exceeding quality. Failure risk compounds with chain length.
+
+task: >
+  Audit a new DeFi smart contract before mainnet launch.
+  Required outputs:
+    1. Security vulnerability report (smart_contract_audit)
+    2. Gas optimisation analysis (code_review)
+    3. Summary report for non-technical investors (content_generation)
+    4. API integration spec for frontend team (api_integration)
+
+agents:
+  buyers:
+    - enterprise_procurement   # wants formal scope, high quality, milestone payments
+    - quality_first            # will compare orchestrator vs premium directly
+
+  direct_hire_path:            # Condition A: buyer → premium_specialist directly
+    sellers:
+      - premium_specialist     # quoted at $12.00, covers only 1 of 4 outputs
+
+  orchestrator_path:           # Condition B: buyer → orchestrator → specialists
+    sellers:
+      - broker_orchestrator    # takes the full job at $10.00
+    sub_agents:
+      - subcontracting_specialist  # smart_contract_audit at $5.00 to orchestrator
+      - commodity_provider         # gas optimisation / code_review at $1.50
+      - high_volume                # content_generation at $2.20
+      - new_entrant                # api_integration spec at $1.00
+
+  failure_injection:
+    agent: new_entrant
+    failure_tick: 45           # new_entrant drops out at tick 45 — tests recovery
+
+  marketplace:
+    - escrow_agent
+    - dispute_resolver
+    - reputation_oracle
+
+metrics:
+  - total_cost_direct_hire_usdc
+  - total_cost_orchestrator_path_usdc
+  - quality_score_direct
+  - quality_score_orchestrated
+  - time_to_completion_direct_ticks
+  - time_to_completion_orchestrated_ticks
+  - orchestrator_margin_captured_usdc
+  - sub_agent_profit_per_participant
+  - chain_failure_recovery_time_ticks    # after new_entrant drops out
+  - cascading_failure_occurred           # did one failure kill the whole job?
+
+profit_per_participant:
+  description: >
+    Tracks how much each agent in the chain earns. Key test of whether
+    the subcontracting model creates viable income for specialist agents.
+
+findings_to_capture:
+  - Is orchestration actually cheaper for the buyer?
+  - Does quality suffer when assembled from multiple agents?
+  - How does the orchestrator handle the sub-agent failure at tick 45?
+  - What is the actual margin the orchestrator captures?
+  - Does the enterprise buyer prefer orchestration or direct hire?
+  - At what chain length does coordination cost exceed quality benefit?
+
+simulation_style: prompt_only
+rounds: 30

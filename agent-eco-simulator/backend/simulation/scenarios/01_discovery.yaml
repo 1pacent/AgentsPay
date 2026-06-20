@@ -1,0 +1,66 @@
+id: "01_discovery"
+name: "Capability Discovery"
+phase: 1
+description: >
+  Tests whether buyers can accurately locate the right services from natural-language
+  task descriptions. Measures taxonomy precision, failed matches, and time to selection.
+
+test_question: >
+  Do buyers consistently find the correct service type from natural language?
+  What causes failed matches? Does the taxonomy get gamed by sellers mislabelling capabilities?
+
+hypothesis: >
+  Buyers with vague task descriptions will match the wrong service types at least 20%
+  of the time. Sellers will attempt to appear in searches outside their true capability.
+
+agents:
+  buyers:
+    - cost_optimiser       # 2 instances
+    - quality_first        # 2 instances
+    - urgent_buyer         # 1 instance
+    - reputation_sensitive # 1 instance
+  sellers:
+    - commodity_provider   # 3 instances (data_analysis, web_search, content_generation)
+    - premium_specialist   # 2 instances (smart_contract_audit, code_review)
+    - new_entrant          # 2 instances
+    - high_volume          # 2 instances
+    - overconfident_provider # 1 instance (mislabelling test)
+  marketplace:
+    - reputation_oracle
+
+initial_conditions:
+  ticks: 100
+  buyer_tasks:
+    - description: "I need someone to find and summarise the 5 most recent papers on LLM agent coordination"
+      expected_capability: web_search
+    - description: "Review my Solidity contract for reentrancy vulnerabilities"
+      expected_capability: smart_contract_audit
+    - description: "Analyse this CSV of transaction data and identify anomalies"
+      expected_capability: data_analysis
+    - description: "Write a 500-word product description for an AI scheduling tool"
+      expected_capability: content_generation
+    - description: "Connect my CRM to my email marketing platform via their APIs"
+      expected_capability: api_integration
+    - description: "Check if my Python code has any security issues"
+      expected_capability: code_review
+
+seller_mislabelling_test:
+  - agent: overconfident_provider
+    attempts_to_list_under: ["smart_contract_audit", "code_review", "api_integration"]
+    true_capability: ["smart_contract_audit"]
+
+metrics:
+  - search_precision              # correct service type found / total searches
+  - failed_match_rate             # searches that returned no suitable results
+  - time_to_selection_ticks       # ticks from task description to accepted quote
+  - mislabelling_detection_rate   # how often buyers spot wrong capability claims
+  - irrelevant_results_per_search # average noise in search results
+
+findings_to_capture:
+  - Which task descriptions cause the most mismatches?
+  - Do buyers ask clarifying questions or just pick the closest match?
+  - Does overconfident_provider's mislabelling succeed in attracting buyers?
+  - Is the taxonomy granular enough or do gaps appear?
+
+simulation_style: prompt_only
+rounds: 25

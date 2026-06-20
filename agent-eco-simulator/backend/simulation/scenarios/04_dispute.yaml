@@ -1,0 +1,86 @@
+id: "04_dispute"
+name: "Escrow, Validation & Dispute Resolution"
+phase: 1
+description: >
+  Compares four payment models under conditions designed to trigger disputes.
+  Includes dishonest_provider and overconfident_provider to stress-test the
+  dispute resolution system. Tests which payment model protects buyers most
+  without deterring legitimate sellers.
+
+test_question: >
+  Which payment model — upfront, post-delivery, escrow, or milestone — best
+  balances buyer protection against seller participation? How does the
+  dispute resolver handle dishonest vs merely incompetent providers?
+
+hypothesis: >
+  Upfront payment maximises seller participation but exposes buyers to fraud.
+  Escrow is the equilibrium — it protects buyers without deterring honest sellers.
+  Dispute rate will be highest under post-delivery (sellers dispute non-payment)
+  and lowest under milestone (disputes are scoped to each milestone).
+
+agents:
+  buyers:
+    - quality_first          # high standards, likely to dispute
+    - cost_optimiser         # will try to exploit dispute system for refunds
+    - reputation_sensitive   # will use dispute rate as future hiring signal
+    - enterprise_procurement # wants milestone payments
+
+  sellers:
+    - premium_specialist     # honest, high quality
+    - commodity_provider     # honest, adequate quality
+    - dishonest_provider     # will attempt to extract payment without delivering
+    - overconfident_provider # will dispute legitimate rejections
+
+  marketplace:
+    - escrow_agent
+    - dispute_resolver
+    - reputation_oracle
+
+payment_conditions:
+  condition_a:
+    name: "Upfront payment"
+    description: Buyer pays before work begins. No escrow.
+    rounds: 8
+
+  condition_b:
+    name: "Post-delivery payment"
+    description: Seller delivers, then buyer pays. No escrow.
+    rounds: 8
+
+  condition_c:
+    name: "Escrow with buyer approval"
+    description: Funds locked in escrow; released on buyer accept or dispute resolution.
+    rounds: 8
+
+  condition_d:
+    name: "Milestone-based escrow"
+    description: Job split into 3 milestones; each funded and released independently.
+    milestone_count: 3
+    rounds: 8
+
+fraud_scenarios:
+  - dishonest_provider accepts job, delivers junk, claims completion
+  - dishonest_provider raises counter-dispute when buyer rejects
+  - cost_optimiser attempts to reject valid work to get a refund
+  - overconfident_provider disputes rejection of genuinely poor work
+
+metrics:
+  - seller_participation_rate_by_condition
+  - buyer_loss_rate_by_condition         # unpaid for delivered work OR paid for undelivered
+  - dispute_rate_by_condition
+  - frivolous_dispute_rate               # disputes that are decided against the raiser
+  - completion_rate_by_condition
+  - time_to_payment_by_condition_ticks
+  - dishonest_provider_extraction_by_condition   # how much did the fraud agent extract?
+  - dispute_resolver_accuracy            # % of decisions the simulation deems correct
+
+findings_to_capture:
+  - Under which condition does dishonest_provider extract the most USDC?
+  - Does escrow materially change seller behaviour?
+  - How often does cost_optimiser abuse the dispute system?
+  - Which condition has the highest genuine completion rate?
+  - Does milestone payment reduce per-dispute amounts enough to justify complexity?
+  - What dispute rules should be hardened based on observed abuse patterns?
+
+simulation_style: prompt_only
+rounds: 32
