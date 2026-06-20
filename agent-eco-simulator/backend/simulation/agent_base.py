@@ -23,7 +23,7 @@ import time
 from abc import ABC, abstractmethod
 from typing import Optional
 
-import anthropic
+from openai import OpenAI
 
 from engine.actions import ActionType, EconomicAction
 from engine.ledger import Ledger
@@ -31,9 +31,15 @@ from engine.registry import ServiceRegistry
 from engine.wallet import AgentWallet
 
 ACTION_PATTERN = re.compile(r"<<ACTION>>\s*(\{.*?\})\s*<</ACTION>>", re.DOTALL)
-CLIENT = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
-MODEL = os.environ.get("SIM_MODEL", "claude-haiku-4-5-20251001")
+
+# Ollama OpenAI-compatible endpoint — same as MiroFish's LLMClient
+_LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "http://localhost:11434/v1")
+_LLM_API_KEY = os.environ.get("LLM_API_KEY", "ollama")
+MODEL = os.environ.get("SIM_MODEL", "gemma3:4b")
 MAX_TOKENS = 600
+_NUM_CTX = int(os.environ.get("OLLAMA_NUM_CTX", "8192"))
+
+CLIENT = OpenAI(api_key=_LLM_API_KEY, base_url=_LLM_BASE_URL, timeout=120.0)
 
 
 class MessageBus:
@@ -132,19 +138,24 @@ The simulation engine decides what actually happens.
         return result
 
     def _llm_call(self, observation: str, tick: int) -> str:
-        messages = self._history + [{"role": "user", "content": f"[TICK {tick}]\n{observation}"}]
+        user_msg = {"role": "user", "content": f"[TICK {tick}]\n{observation}"}
+        messages = [{"role": "system", "content": self._system_prompt}] + self._history + [user_msg]
         try:
-            resp = CLIENT.messages.create(
-                model=MODEL,
-                max_tokens=MAX_TOKENS,
-                system=self._system_prompt,
-                messages=messages,
-            )
-            text = resp.content[0].text
-            self._history.append({"role": "user", "content": f"[TICK {tick}]\n{observation}"})
+            kwargs = {
+                "model": MODEL,
+                "messages": messages,
+                "max_tokens": MAX_TOKENS,
+                "temperature": 0.7,
+            }
+            # Pass Ollama num_ctx via extra_body to prevent prompt truncation
+            if "11434" in _LLM_BASE_URL:
+                kwargs["extra_body"] = {"options": {"num_ctx": _NUM_CTX}}
+            resp = CLIENT.chat.completions.create(**kwargs)
+            text = resp.choices[0].message.content or ""
+            self._history.append(user_msg)
             return text
         except Exception as e:
-            return f"<<ACTION>>\n{{\"action_type\": \"SEARCH_CAPABILITY\", \"payload\": {{\"capability_type\": \"data_analysis\"}}}}\n<</ACTION>>\nAPI error: {e}"
+            return f"<<ACTION>>\n{{\"action_type\": \"SEARCH_CAPABILITY\", \"payload\": {{\"capability_type\": \"data_analysis\"}}}}\n<</ACTION>>\nLLM error: {e}"
 
     def _parse_action(self, text: str) -> Optional[dict]:
         match = ACTION_PATTERN.search(text)
