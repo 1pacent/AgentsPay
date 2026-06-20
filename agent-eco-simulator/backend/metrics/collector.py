@@ -10,7 +10,7 @@ All inputs derive from the deterministic ledger — never from LLM output.
 """
 
 from dataclasses import dataclass
-from .ledger import Ledger  # relative import resolved at runtime
+from ..engine.ledger import Ledger
 
 
 @dataclass
