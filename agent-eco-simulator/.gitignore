@@ -56,6 +56,9 @@ backend/logs/
 # 上传文件
 backend/uploads/
 
+# Eco simulation results (ephemeral run outputs)
+backend/simulation/results/*.json
+
 # Docker 数据
 data/backend/venv311/
 backend/venv311/
